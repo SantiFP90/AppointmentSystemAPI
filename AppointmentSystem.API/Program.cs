@@ -6,6 +6,9 @@ using AppointmentSystem.Infrastructure.Services;
 using AppointmentSystem.Application.Interfaces.Repositories;
 using AppointmentSystem.Infrastructure.Repositories;
 using AppointmentSystem.Infrastructure.Security;
+using AppointmentSystem.Application.Interfaces.Fatories;
+using AppointmentSystem.Infrastructure.Factories;
+using AppointmentSystem.Infrastructure.Strategies;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,7 +28,6 @@ builder.Services.AddControllers();
 
 //Services
 builder.Services.AddScoped<IAuthService, AuthService>();
-//builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<IWorkingDayService, WorkingDayService>();
 builder.Services.AddScoped<ITimeSlotService, TimeSlotService>();
 builder.Services.AddScoped<IAppointmentService, AppointmentService>();
@@ -35,8 +37,16 @@ builder.Services.AddScoped<INotificationLogService, NotificationLogService>();
 //Repositories
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 
+
 //UoW Repository
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+//Strategies
+builder.Services.AddScoped<ExistingClientStrategy>();
+builder.Services.AddScoped<NewUserStrategy>();
+
+//Factories
+builder.Services.AddScoped<IClientCreationStrategyFactory, ClientCreationStrategyFactory>();
 
 //Security
 builder.Services.AddScoped<JwtSecurityService>();

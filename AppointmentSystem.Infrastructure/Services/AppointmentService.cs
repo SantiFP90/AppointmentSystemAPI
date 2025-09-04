@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using AppointmentSystem.Application.DTOS.Appoiment;
 using AppointmentSystem.Application.DTOS.Response;
+using AppointmentSystem.Application.Interfaces.Fatories;
 using AppointmentSystem.Application.Interfaces.Repositories;
 using AppointmentSystem.Application.Interfaces.Services;
 using AppointmentSystem.Domain.Entities;
@@ -17,10 +18,12 @@ namespace AppointmentSystem.Infrastructure.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
+        private readonly IClientCreationStrategyFactory _clientFactory;
 
-        public AppointmentService(IUnitOfWork unitOfWork, IMapper mapper)
+        public AppointmentService(IUnitOfWork unitOfWork, IMapper mapper, IClientCreationStrategyFactory clientFactory)
         {
             _unitOfWork = unitOfWork;
+            _clientFactory = clientFactory;
             _mapper = mapper;
         }
 
@@ -30,43 +33,13 @@ namespace AppointmentSystem.Infrastructure.Services
 
             try
             {
-                if (dto.ClientId == 0 || dto.ClientId == null)
-                {
-                    var userEntity = new User
-                    {
-                        FullName = dto.ClientName,
-                        PhoneNumber = dto.ClientPhoneNumber,
-                        Age = 0,
-                        DNI = "",
-                        Email = dto.ClientEmail,
-                        PasswordHash = BCrypt.Net.BCrypt.HashPassword("defaultPassword123"),
-                        RoleId = 3,
-                    };
+                var strategy = _clientFactory.GetStrategy(dto);
 
-                    await _unitOfWork.Users.Create(userEntity);
-                    await _unitOfWork.SaveChangesAsync();
-
-                    var existingUser = await _unitOfWork.Users.GetByItem(
-                     u => u.Email == userEntity.Email
-                 );
-
-                    dto.ClientId = existingUser!.Id;
-
-                    var entityDefault = _mapper.Map<Appointment>(dto);
-
-                    await _unitOfWork.Appointments.Create(entityDefault);
-
-                    await _unitOfWork.SaveChangesAsync();
-
-                    await _unitOfWork.CommitTransactionAsync();
-
-                    return ApiResponse<AppointmentDto>.Ok(_mapper.Map<AppointmentDto>(entityDefault));
-                }
+                dto.ClientId = await strategy.GetOrCreateClientIdAsync(dto);
 
                 var entity = _mapper.Map<Appointment>(dto);
 
                 await _unitOfWork.Appointments.Create(entity);
-
                 await _unitOfWork.SaveChangesAsync();
 
                 await _unitOfWork.CommitTransactionAsync();
