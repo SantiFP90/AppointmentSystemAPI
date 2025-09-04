@@ -61,7 +61,7 @@ namespace AppointmentSystem.API.Controllers
         }
 
         [HttpPatch("updateUserByIdForClient")]
-        public async Task<IActionResult> UpdateUserForClient([FromQuery] int id, [FromBody] UserDto userUpdate)
+        public async Task<IActionResult> UpdateUserForClient([FromQuery] int id, [FromBody] RegisterUserDto userUpdate)
         {
             var response = await _authService.UpdateByIdForClient(id, userUpdate);
 
