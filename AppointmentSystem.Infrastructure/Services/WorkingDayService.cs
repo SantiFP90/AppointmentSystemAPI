@@ -1,5 +1,4 @@
 ﻿using AppointmentSystem.Application.DTOS.Response;
-using AppointmentSystem.Application.DTOS.TimeSlot;
 using AppointmentSystem.Application.DTOS.WorkingDay;
 using AppointmentSystem.Application.Interfaces.Repositories;
 using AppointmentSystem.Application.Interfaces.Services;
@@ -26,42 +25,9 @@ namespace AppointmentSystem.Infrastructure.Services
             {
                 var created = await _unitOfWork.ExecuteInTransactionAsync(async () =>
                 {
-                    var workingDay = _mapper.Map<WorkingDay>(dto);
-                    workingDay.IsActive = true;
+                    var workingDay = await CreateWorkingDayAsync(dto);
 
-                    await _unitOfWork.WorkingDays.Create(workingDay);
-                    await _unitOfWork.SaveChangesAsync();
-
-
-                    var workingDayCreated = await _unitOfWork.WorkingDays.GetByItem(wd => wd.Id == workingDay.Id);
-
-                    int idWorkingDay = workingDayCreated!.Id;
-
-                    int totalTimes = GetTimeSlotCount(
-                        workingDayCreated.StartTime,
-                        workingDayCreated.EndTime,
-                        workingDayCreated.SlotDurationMinutes
-                    );
-
-                    var currentStart = workingDayCreated.StartTime;
-                    var slotDuration = TimeSpan.FromMinutes(workingDayCreated.SlotDurationMinutes);
-
-                    for (int i = 0; i < totalTimes; i++)
-                    {
-                        var timeSlotEntity = new TimeSlot
-                        {
-                            WorkingDayId = idWorkingDay,
-                            StartTime = currentStart,
-                            EndTime = currentStart.Add(slotDuration),
-                            IsAvailable = true
-                        };
-
-                        await _unitOfWork.TimeSlots.Create(timeSlotEntity);
-
-                        currentStart = currentStart.Add(slotDuration); 
-                    }
-
-                    await _unitOfWork.SaveChangesAsync();
+                    await GenerateAndSaveTimeSlotsAsync(workingDay);
 
                     return workingDay;
                 });
@@ -132,7 +98,6 @@ namespace AppointmentSystem.Infrastructure.Services
             }
         }
 
-        // Métodos de solo lectura → no requieren transacción
         public async Task<ApiResponse<WorkingDayDto>> GetByIdAsync(int id)
         {
             var workingDay = await _unitOfWork.WorkingDays.GetByItem(wd => wd.Id == id);
@@ -164,6 +129,46 @@ namespace AppointmentSystem.Infrastructure.Services
             };
 
             return ApiResponse<PaginatedResponse<WorkingDayDto>>.Ok(paginated);
+        }
+
+        private async Task<WorkingDay> CreateWorkingDayAsync(WorkingDayCreateDto dto)
+        {
+            var workingDay = _mapper.Map<WorkingDay>(dto);
+            workingDay.IsActive = true;
+
+            await _unitOfWork.WorkingDays.Create(workingDay);
+            await _unitOfWork.SaveChangesAsync();
+
+            return (await _unitOfWork.WorkingDays.GetByItem(wd => wd.Id == workingDay.Id))!;
+        }
+
+        private async Task GenerateAndSaveTimeSlotsAsync(WorkingDay workingDay)
+        {
+            int totalTimes = GetTimeSlotCount(
+                workingDay.StartTime,
+                workingDay.EndTime,
+                workingDay.SlotDurationMinutes
+            );
+
+            var currentStart = workingDay.StartTime;
+            var slotDuration = TimeSpan.FromMinutes(workingDay.SlotDurationMinutes);
+
+            for (int i = 0; i < totalTimes; i++)
+            {
+                var timeSlotEntity = new TimeSlot
+                {
+                    WorkingDayId = workingDay.Id,
+                    StartTime = currentStart,
+                    EndTime = currentStart.Add(slotDuration),
+                    IsAvailable = true
+                };
+
+                await _unitOfWork.TimeSlots.Create(timeSlotEntity);
+
+                currentStart = currentStart.Add(slotDuration);
+            }
+
+            await _unitOfWork.SaveChangesAsync();
         }
 
         public int GetTimeSlotCount(TimeSpan start, TimeSpan end, int intervalMinutes)
