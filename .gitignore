@@ -1,0 +1,111 @@
+##############################
+# .NET / Visual Studio / Rider
+##############################
+
+## Build results
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## Roslyn cache
+*.ide/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+## VS Code local settings
+.vscode/
+.history/
+.idea/
+
+## Rider / JetBrains
+.idea/
+*.sln.iml
+
+## NuGet
+*.nupkg
+*.snupkg
+*.nuget.props
+*.nuget.targets
+packages/
+*.lock.json
+
+## Entity Framework Migrations Build Artifacts
+Migrations/obj/
+Migrations/bin/
+
+## Test results
+[Tt]est[Rr]esult*/
+[Tt]est[Rr]esults/
+*.trx
+*.coverage
+*.coveragexml
+
+## ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
+## Generated files
+Generated Files/
+*.g.*
+*.g.cs
+*.g.i.cs
+*.g.vb
+
+## Web Stuff
+wwwroot/dist/
+wwwroot/node_modules/
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+## Environment and secrets
+*.env
+*.env.*
+secrets.json
+appsettings.Development.json
+appsettings.Local.json
+
+## Cache
+*.pidb
+*.svclog
+*.scc
+_ReSharper*/
+_ReSharper.Caches/
+*.DotSettings.user
+
+## Publish
+publish/
+*.pubxml
+*.publishproj
+*.pubxml.user
+
+## Others
+*.DS_Store
+Thumbs.db
+desktop.ini
+
+# Coverage & analysis
+coverage/
+*.lcov
+*.opencover.xml
+
+##############################
+# Ignore specific folders by layer
+##############################
+
+AppointmentSystem.API/bin/
+AppointmentSystem.API/obj/
+AppointmentSystem.Application/bin/
+AppointmentSystem.Application/obj/
+AppointmentSystem.Domain/bin/
+AppointmentSystem.Domain/obj/
+AppointmentSystem.Infrastructure/bin/
+AppointmentSystem.Infrastructure/obj/
+
