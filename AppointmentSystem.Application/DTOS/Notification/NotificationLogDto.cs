@@ -11,7 +11,6 @@ namespace AppointmentSystem.Application.DTOS.Notification
     {
         public int Id { get; set; }
         public int AppointmentId { get; set; }
-        public int NotificationTemplateId { get; set; }
         public NotificationType Type { get; set; }
         public string Recipient { get; set; } = null!;
         public string Subject { get; set; } = null!;

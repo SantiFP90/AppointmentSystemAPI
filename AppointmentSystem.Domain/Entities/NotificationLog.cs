@@ -18,14 +18,11 @@ namespace AppointmentSystem.Domain.Entities
         public int AppointmentId { get; set; }
 
         [Required]
-        public int NotificationTemplateId { get; set; }
-
-        [Required]
         public NotificationType Type { get; set; }
 
         [Required]
         [MaxLength(200)]
-        public string Recipient { get; set; } = null!; // Email o teléfono
+        public string Recipient { get; set; } = null!; 
 
         [Required]
         public string Subject { get; set; } = null!;
@@ -43,8 +40,5 @@ namespace AppointmentSystem.Domain.Entities
 
         [ForeignKey("AppointmentId")]
         public Appointment Appointment { get; set; } = null!;
-
-        [ForeignKey("NotificationTemplateId")]
-        public NotificationTemplate NotificationTemplate { get; set; } = null!;
     }
 }

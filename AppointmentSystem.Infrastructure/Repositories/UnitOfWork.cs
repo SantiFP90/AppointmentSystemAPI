@@ -15,7 +15,6 @@ namespace AppointmentSystem.Infrastructure.Repositories
         public IGenericRepository<WorkingDay> WorkingDays { get; }
         public IGenericRepository<TimeSlot> TimeSlots { get; }
         public IGenericRepository<Appointment> Appointments { get; }
-        public IGenericRepository<NotificationTemplate> NotificationTemplates { get; }
         public IGenericRepository<NotificationLog> NotificationLogs { get; }
 
         public UnitOfWork(
@@ -25,7 +24,6 @@ namespace AppointmentSystem.Infrastructure.Repositories
             IGenericRepository<WorkingDay> workingDayRepository,
             IGenericRepository<TimeSlot> timeSlotRepository,
             IGenericRepository<Appointment> appointmentRepository,
-            IGenericRepository<NotificationTemplate> notificationTemplateRepository,
             IGenericRepository<NotificationLog> notificationLogRepository
         )
         {
@@ -35,7 +33,6 @@ namespace AppointmentSystem.Infrastructure.Repositories
             WorkingDays = workingDayRepository;
             TimeSlots = timeSlotRepository;
             Appointments = appointmentRepository;
-            NotificationTemplates = notificationTemplateRepository;
             NotificationLogs = notificationLogRepository;
         }
 

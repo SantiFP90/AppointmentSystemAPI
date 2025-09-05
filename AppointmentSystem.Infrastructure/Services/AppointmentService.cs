@@ -1,14 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using AppointmentSystem.Application.DTOS.Appoiment;
+﻿using AppointmentSystem.Application.DTOS.Appoiment;
+using AppointmentSystem.Application.DTOS.Notification;
 using AppointmentSystem.Application.DTOS.Response;
+using AppointmentSystem.Application.DTOS.TimeSlot;
 using AppointmentSystem.Application.Interfaces.Fatories;
 using AppointmentSystem.Application.Interfaces.Repositories;
 using AppointmentSystem.Application.Interfaces.Services;
 using AppointmentSystem.Domain.Entities;
+using AppointmentSystem.Domain.Enums;
+using AppointmentSystem.Infrastructure.Helper;
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,12 +18,16 @@ namespace AppointmentSystem.Infrastructure.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
         private readonly IClientCreationStrategyFactory _clientFactory;
+        private readonly INotificationLogService _notificationLogService;
+        private readonly ISmtpService _smtpService;
 
-        public AppointmentService(IUnitOfWork unitOfWork, IMapper mapper, IClientCreationStrategyFactory clientFactory)
+        public AppointmentService(IUnitOfWork unitOfWork, IMapper mapper, IClientCreationStrategyFactory clientFactory, INotificationLogService notificationLogService, ISmtpService smtpService)
         {
             _unitOfWork = unitOfWork;
             _clientFactory = clientFactory;
             _mapper = mapper;
+            _notificationLogService = notificationLogService;
+            _smtpService = smtpService;
         }
 
         public async Task<ApiResponse<AppointmentDto>> CreateAsync(AppointmentCreateDto dto)
@@ -33,18 +36,41 @@ namespace AppointmentSystem.Infrastructure.Services
 
             try
             {
-                var strategy = _clientFactory.GetStrategy(dto);
+                TimeSlot timeSlot = await _unitOfWork.TimeSlots.GetByItem(t => t.Id == dto.TimeSlotId);
 
-                dto.ClientId = await strategy.GetOrCreateClientIdAsync(dto);
+                if (timeSlot == null)
+                {
+                    return ApiResponse<AppointmentDto>.Fail("El turno seleccionado no existe.");
+                }
 
-                var entity = _mapper.Map<Appointment>(dto);
+                if (!timeSlot.IsAvailable)
+                {
+                    return ApiResponse<AppointmentDto>.Fail("El turno seleccionado ya está reservado.");
+                }
 
-                await _unitOfWork.Appointments.Create(entity);
+                dto.ClientId = await GetOrCreateClientIdAsync(dto);
+
+                var appointmentEntity = _mapper.Map<Appointment>(dto);
+
+                await _unitOfWork.Appointments.Create(appointmentEntity);
+
+                timeSlot.IsAvailable = false;
+
+                await _unitOfWork.TimeSlots.Edit(timeSlot);
+
                 await _unitOfWork.SaveChangesAsync();
+
+                var appointmentWithRelations = await _unitOfWork.Appointments.GetByItem(
+                        a => a.Id == appointmentEntity.Id,
+                        include: q => q.Include(a => a.TimeSlot)
+                                       .ThenInclude(ts => ts.WorkingDay)
+                );
+
+                await SendEmailAndLogAsync(dto, appointmentWithRelations!);
 
                 await _unitOfWork.CommitTransactionAsync();
 
-                return ApiResponse<AppointmentDto>.Ok(_mapper.Map<AppointmentDto>(entity));
+                return ApiResponse<AppointmentDto>.Ok(_mapper.Map<AppointmentDto>(appointmentEntity));
             }
             catch (Exception ex)
             {
@@ -66,9 +92,18 @@ namespace AppointmentSystem.Infrastructure.Services
                     if (existing == null)
                         return null;
 
+                    TimeSlot timeSlot = await _unitOfWork.TimeSlots.GetByItem(t => t.Id == existing.TimeSlotId);
+                    
+                    timeSlot.IsAvailable = true;
+
+                    await _unitOfWork.TimeSlots.Edit(timeSlot);
+
+                    await _unitOfWork.SaveChangesAsync();
+
                     existing.Status = dto.Status;
 
                     await _unitOfWork.Appointments.Edit(existing);
+                    
                     await _unitOfWork.SaveChangesAsync();
 
                     var response = _mapper.Map<AppointmentDto>(existing);
@@ -170,6 +205,59 @@ namespace AppointmentSystem.Infrastructure.Services
 
             return ApiResponse<List<AppointmentDto>>.Ok(_mapper.Map<List<AppointmentDto>>(list));
         }
-    }
 
+        private async Task<int> GetOrCreateClientIdAsync(AppointmentCreateDto dto)
+        {
+            var strategy = _clientFactory.GetStrategy(dto);
+            return await strategy.GetOrCreateClientIdAsync(dto);
+        }
+
+        private async Task SendEmailAndLogAsync(AppointmentCreateDto dto, Appointment appointmentEntity)
+        {
+            // Cargar plantilla
+            var emailBody = EmailTemplateHelper.LoadTemplate(
+                "AppointmentConfirmation.html",
+                new Dictionary<string, string>
+                {
+            { "ClientName", dto.ClientName },
+            { "Date", appointmentEntity.TimeSlot.WorkingDay.Date.ToString("dd/MM/yyyy") },
+            { "Time", appointmentEntity.TimeSlot.StartTime.ToString(@"hh\:mm") }
+                }
+            );
+
+            bool emailSent = false;
+            string? errorMessage = null;
+
+            try
+            {
+                await _smtpService.SendEmailAsync(
+                    dto.ClientEmail!,
+                    "Confirmación de turno",
+                    emailBody,
+                    isHtml: true
+                );
+                emailSent = true;
+            }
+            catch (Exception ex)
+            {
+                emailSent = false;
+                errorMessage = ex.Message;
+            }
+
+            // Guardar log
+            var logDto = new NotificationLogDto
+            {
+                AppointmentId = appointmentEntity.Id,
+                Type = NotificationType.Email,
+                Recipient = dto.ClientEmail!,
+                Subject = "Confirmación de turno",
+                Body = emailBody,
+                IsSent = emailSent,
+                SentAt = emailSent ? DateTime.UtcNow : null,
+                ErrorMessage = errorMessage
+            };
+
+            await _notificationLogService.CreateAsync(logDto);
+        }
+    }
 }

@@ -9,7 +9,6 @@ namespace AppointmentSystem.Application.Interfaces.Repositories
         IGenericRepository<WorkingDay> WorkingDays { get; }
         IGenericRepository<TimeSlot> TimeSlots { get; }
         IGenericRepository<Appointment> Appointments { get; }
-        IGenericRepository<NotificationTemplate> NotificationTemplates { get; }
         IGenericRepository<NotificationLog> NotificationLogs { get; }
         Task<int> SaveChangesAsync();
         Task BeginTransactionAsync();

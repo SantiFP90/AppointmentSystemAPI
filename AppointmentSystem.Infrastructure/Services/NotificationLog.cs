@@ -30,7 +30,6 @@ namespace AppointmentSystem.Infrastructure.Services
             var entity = await _unitOfWork.NotificationLogs.GetByItem(
                 x => x.Id == id,
                 include: q => q.Include(l => l.Appointment)
-                    .Include(l => l.NotificationTemplate)
             );
 
             if (entity == null)
@@ -49,8 +48,7 @@ namespace AppointmentSystem.Infrastructure.Services
                     (!type.HasValue || x.Type == type.Value) &&
                     (!isSent.HasValue || x.IsSent == isSent.Value),
                 q => q
-                    .Include(l => l.Appointment)
-                    .Include(l => l.NotificationTemplate),
+                    .Include(l => l.Appointment),
                 q => q.OrderByDescending(l => l.CreatedAt)
             );
 
@@ -110,7 +108,6 @@ namespace AppointmentSystem.Infrastructure.Services
                 x => !x.IsSent,
                 q => q
                     .Include(l => l.Appointment)
-                    .Include(l => l.NotificationTemplate)
             );
 
             var pending = await query
