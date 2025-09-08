@@ -87,36 +87,35 @@ namespace AppointmentSystem.Infrastructure.Services
                 {
                     var existing = await _unitOfWork.Appointments.GetByItem(
                         a => a.Id == id,
-                        include: q => q.Include(u => u.Client).Include(a => a.TimeSlot)
+                        include: q => q.Include(a => a.TimeSlot)
+                                       .ThenInclude(ts => ts.WorkingDay)
                     );
+
                     if (existing == null)
                         return null;
 
-                    TimeSlot timeSlot = await _unitOfWork.TimeSlots.GetByItem(t => t.Id == existing.TimeSlotId);
-                    
-                    timeSlot.IsAvailable = true;
-
-                    await _unitOfWork.TimeSlots.Edit(timeSlot);
-
-                    await _unitOfWork.SaveChangesAsync();
+                    var validation = await ValidateAndSwapTimeSlotAsync(existing, dto);
+                    if (!validation.Success)
+                        throw new InvalidOperationException(validation.Message);
 
                     existing.Status = dto.Status;
-
                     await _unitOfWork.Appointments.Edit(existing);
-                    
                     await _unitOfWork.SaveChangesAsync();
 
-                    var response = _mapper.Map<AppointmentDto>(existing);
-
-                    return response;
+                    return _mapper.Map<AppointmentDto>(existing);
                 });
-                if (result == null)
-                    return ApiResponse<AppointmentDto>.Fail("Error al actualizar la cita");
-                return ApiResponse<AppointmentDto>.Ok(result);
+
+                return result == null
+                    ? ApiResponse<AppointmentDto>.Fail("No se encontró la cita.")
+                    : ApiResponse<AppointmentDto>.Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return ApiResponse<AppointmentDto>.Fail(ex.Message);
             }
             catch (Exception ex)
             {
-                return ApiResponse<AppointmentDto>.Fail($"Error al actualizar cita: {ex.Message}");
+                return ApiResponse<AppointmentDto>.Fail($"Error inesperado: {ex.Message}");
             }
         }
 
@@ -126,27 +125,59 @@ namespace AppointmentSystem.Infrastructure.Services
             {
                 var result = await _unitOfWork.ExecuteInTransactionAsync(async () =>
                 {
-                    var existing = await _unitOfWork.Appointments.GetByItem(a => a.Id == id);
+                    var existing = await _unitOfWork.Appointments.GetByItem(
+                        a => a.Id == id,
+                        include: q => q.Include(a => a.TimeSlot)
+                    );
 
                     if (existing == null)
-                        return false;
+                        return ApiResponse<bool>.Fail("La cita no existe.");
+
+                    if (existing.TimeSlot != null)
+                    {
+                        existing.TimeSlot.IsAvailable = true;
+                        await _unitOfWork.TimeSlots.Edit(existing.TimeSlot);
+                    }
 
                     await _unitOfWork.Appointments.Delete(existing);
+
                     await _unitOfWork.SaveChangesAsync();
 
-                    return true;
+                    var registerLog = await _notificationLogService.CreateAsync(new NotificationLogDto
+                    {
+                        AppointmentId = existing.Id,
+                        Type = NotificationType.Email,
+                        Recipient = existing.Client?.Email ?? "N/A",
+                        Subject = "Cita cancelada",
+                        Body = $"La cita para el {existing.TimeSlot?.WorkingDay.Date:dd/MM/yyyy} a las {existing.TimeSlot?.StartTime:hh\\:mm} ha sido cancelada.",
+                        IsSent = false, 
+                        SentAt = DateTime.UtcNow
+                    });
+
+                    if(registerLog.IsSent == false)
+                    {
+                        await _smtpService.SendEmailAsync(
+                            existing.Client?.Email ?? "N/A",
+                            "Cita cancelada",
+                            $"La cita para el {existing.TimeSlot?.WorkingDay.Date:dd/MM/yyyy} a las {existing.TimeSlot?.StartTime:hh\\:mm} ha sido cancelada.",
+                            isHtml: false
+                        );
+                        registerLog.IsSent = true;
+                        registerLog.SentAt = DateTime.UtcNow;
+                        await _notificationLogService.UpdateAsync(registerLog.Id, registerLog);
+                    }
+
+                    return ApiResponse<bool>.Ok(true, "La cita fue eliminada y el turno liberado.");
                 });
 
-                if (!result)
-                    return ApiResponse<bool>.Fail("Ocurrió un error");
-
-                return ApiResponse<bool>.Ok(true, "La cita se elimino correctamente");
+                return result;
             }
             catch (Exception ex)
             {
                 return ApiResponse<bool>.Fail($"Error al eliminar la cita: {ex.Message}");
             }
         }
+
 
         public async Task<ApiResponse<AppointmentDto>> GetByIdAsync(int id)
         {
@@ -206,6 +237,7 @@ namespace AppointmentSystem.Infrastructure.Services
             return ApiResponse<List<AppointmentDto>>.Ok(_mapper.Map<List<AppointmentDto>>(list));
         }
 
+        #region Functions
         private async Task<int> GetOrCreateClientIdAsync(AppointmentCreateDto dto)
         {
             var strategy = _clientFactory.GetStrategy(dto);
@@ -214,7 +246,6 @@ namespace AppointmentSystem.Infrastructure.Services
 
         private async Task SendEmailAndLogAsync(AppointmentCreateDto dto, Appointment appointmentEntity)
         {
-            // Cargar plantilla
             var emailBody = EmailTemplateHelper.LoadTemplate(
                 "AppointmentConfirmation.html",
                 new Dictionary<string, string>
@@ -244,7 +275,6 @@ namespace AppointmentSystem.Infrastructure.Services
                 errorMessage = ex.Message;
             }
 
-            // Guardar log
             var logDto = new NotificationLogDto
             {
                 AppointmentId = appointmentEntity.Id,
@@ -259,5 +289,25 @@ namespace AppointmentSystem.Infrastructure.Services
 
             await _notificationLogService.CreateAsync(logDto);
         }
+
+        private async Task<ApiResponse<bool>> ValidateAndSwapTimeSlotAsync(Appointment existing, AppointmentUpdateDto dto)
+        {
+            if (!dto.TimeSlotId.HasValue || dto.TimeSlotId.Value == existing.TimeSlotId)
+                return ApiResponse<bool>.Ok(true);
+
+            var newTimeSlot = await _unitOfWork.TimeSlots.GetByItem(t => t.Id == dto.TimeSlotId.Value);
+            if (newTimeSlot == null || !newTimeSlot.IsAvailable)
+                return ApiResponse<bool>.Fail("El nuevo turno seleccionado no está disponible.");
+
+            existing.TimeSlot.IsAvailable = true;
+            await _unitOfWork.TimeSlots.Edit(existing.TimeSlot);
+
+            newTimeSlot.IsAvailable = false;
+            await _unitOfWork.TimeSlots.Edit(newTimeSlot);
+
+            existing.TimeSlotId = newTimeSlot.Id;
+            return ApiResponse<bool>.Ok(true);
+        }
+        #endregion
     }
 }
