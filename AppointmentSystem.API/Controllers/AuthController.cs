@@ -28,7 +28,7 @@ namespace AppointmentSystem.API.Controllers
         }
 
         [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] RegisterUserDto registerDto)
+        public async Task<IActionResult> Register([FromForm] RegisterUserDto registerDto)
         {
             var response = await _authService.RegisterAsync(registerDto);
 
