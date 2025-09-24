@@ -1,15 +1,14 @@
-﻿using System;
+﻿using AppointmentSystem.Domain.Enums;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using AppointmentSystem.Domain.Enums;
 
 namespace AppointmentSystem.Application.DTOS.Appoiment
 {
-    public class AppointmentDto
+    public class AppoimentMonthDto
     {
-        public int Id { get; set; }
         public int ClientId { get; set; }
         public string ClientName { get; set; } = null!;
         public string ClientEmail { get; set; } = null!;
@@ -18,7 +17,8 @@ namespace AppointmentSystem.Application.DTOS.Appoiment
         public AppointmentStatus Status { get; set; }
         public PaymentStatus PaymentStatus { get; set; }
         public decimal? Amount { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public int TimeSlotId { get; set; }
+        public DateTime Date { get; set; }
+        public TimeSpan StartTime { get; set; }
+        public TimeSpan EndTime { get; set; }
     }
 }

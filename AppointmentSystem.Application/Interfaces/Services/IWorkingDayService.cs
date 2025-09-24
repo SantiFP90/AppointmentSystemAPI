@@ -6,6 +6,7 @@ namespace AppointmentSystem.Application.Interfaces.Services
     public interface IWorkingDayService
     {
         Task<ApiResponse<WorkingDayDto>> CreateAsync(WorkingDayCreateDto dto);
+        Task<ApiResponse<List<WorkingDayDto>>> CreateRangeAsync(WorkingDayByRangeDto dto);
         Task<ApiResponse<WorkingDayDto>> UpdateAsync(int id, WorkingDayDto dto); 
         Task<ApiResponse<bool>> DeleteAsync(int id);
         Task<ApiResponse<WorkingDayDto>> GetByIdAsync(int id);

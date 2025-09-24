@@ -26,6 +26,16 @@ namespace AppointmentSystem.API.Controllers
                 return BadRequest(response);
         }
 
+        [HttpPost("createRangeAsync")]
+        public async Task<IActionResult> CreateByRange([FromBody] WorkingDayByRangeDto dto)
+        {
+            var response = await _workingDayService.CreateRangeAsync(dto);
+            if (response.Success)
+                return Ok(response);
+            else
+                return BadRequest(response);
+        }
+
         [HttpPatch("update")]
         public async Task<IActionResult> Update([FromQuery] int id, [FromBody] WorkingDayDto dto)
         {

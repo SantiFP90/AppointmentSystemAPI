@@ -57,9 +57,10 @@ namespace AppointmentSystem.API.Controllers
         }
 
         [HttpGet("getAllPaged")]
-        public async Task<IActionResult> GetAllPaged([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<IActionResult> GetAllPaged([FromQuery] int page = 1, [FromQuery] int pageSize = 10,
+            [FromQuery] string name = null)
         {
-            var response = await _appointmentService.GetAllPagedAsync(page, pageSize);
+            var response = await _appointmentService.GetAllPagedAsync(page, pageSize, name);
             if (response.Success)
                 return Ok(response);
             else
@@ -85,6 +86,37 @@ namespace AppointmentSystem.API.Controllers
             else
                 return BadRequest(response);
         }
+
+        [HttpGet("getAppoimentByMonth")]
+        public async Task<IActionResult> GetAppoimentByMonth([FromQuery] int month)
+        {
+            var response = await _appointmentService.GetAppoimentByMonth(month);
+            if (response.Success)
+                return Ok(response);
+            else
+                return BadRequest(response);
+        }
+
+        [HttpGet("getAppoimentByMonthYear")]
+        public async Task<IActionResult> GetCalendarByMonthAsync([FromQuery] int month, int year)
+        {
+            var response = await _appointmentService.GetCalendarByMonthAsync(month, year);
+            if (response.Success)
+                return Ok(response);
+            else
+                return BadRequest(response);
+        }
+
+        [HttpGet("getCounters")]
+        public async Task<IActionResult> GetCounters()
+        {
+            var response = await _appointmentService.GetCounters();
+            if (response.Success)
+                return Ok(response);
+            else
+                return BadRequest(response);
+        }
+
     }
 }
 

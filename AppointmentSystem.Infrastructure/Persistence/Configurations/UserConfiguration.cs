@@ -12,7 +12,6 @@ namespace AppointmentSystem.Infrastructure.Persistence.Configurations
             entity.Property(u => u.FullName).IsRequired().HasMaxLength(100);
             entity.Property(u => u.DNI).IsRequired().HasMaxLength(20);
             entity.Property(u => u.Email).IsRequired().HasMaxLength(100);
-            entity.HasIndex(u => u.Email).IsUnique();
 
             entity.HasOne(u => u.Role)
                   .WithMany(r => r.Users)

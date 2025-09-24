@@ -1,10 +1,12 @@
-﻿using AppointmentSystem.Application.DTOS.Response;
+﻿using AppointmentSystem.Application.DTOS.Appoiment;
+using AppointmentSystem.Application.DTOS.Response;
 using AppointmentSystem.Application.DTOS.WorkingDay;
 using AppointmentSystem.Application.Interfaces.Repositories;
 using AppointmentSystem.Application.Interfaces.Services;
 using AppointmentSystem.Domain.Entities;
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
 
 namespace AppointmentSystem.Infrastructure.Services
 {
@@ -39,6 +41,57 @@ namespace AppointmentSystem.Infrastructure.Services
                 return ApiResponse<WorkingDayDto>.Fail($"Error al crear WorkingDay: {ex.Message}");
             }
         }
+
+        public async Task<ApiResponse<List<WorkingDayDto>>> CreateRangeAsync(
+            WorkingDayByRangeDto dto
+        )
+        {
+            if (dto.EndDate < dto.StartDate)
+                return ApiResponse<List<WorkingDayDto>>.Fail("La fecha de fin no puede ser menor que la de inicio.");
+
+            try
+            {
+                var createdDays = await _unitOfWork.ExecuteInTransactionAsync(async () =>
+                {
+                    var result = new List<WorkingDay>();
+
+                    for (var date = dto.StartDate.Date; date <= dto.EndDate.Date; date = date.AddDays(1))
+                    {
+
+                        if (!dto.Days.Contains((int)date.DayOfWeek))
+                            continue;
+
+                        var wd = new WorkingDay
+                        {
+                            Date = date,
+                            StartTime = dto.StartTime,
+                            EndTime = dto.EndTime,
+                            SlotDurationMinutes = dto.SlotDurationMinutes,
+                            IsActive = true
+                        };
+
+                        await _unitOfWork.WorkingDays.Create(wd);
+                        await _unitOfWork.SaveChangesAsync();
+
+                        await GenerateAndSaveTimeSlotsAsync(wd);
+
+                        result.Add(wd);
+                    }
+
+                    return result;
+                });
+
+                return ApiResponse<List<WorkingDayDto>>.Ok(
+                    _mapper.Map<List<WorkingDayDto>>(createdDays),
+                    $"Se crearon {createdDays.Count} días de trabajo correctamente."
+                );
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<WorkingDayDto>>.Fail($"Error al crear días de trabajo: {ex.Message}");
+            }
+        }
+
 
         public async Task<ApiResponse<WorkingDayDto>> UpdateAsync(int id, WorkingDayDto dto)
         {
@@ -110,7 +163,7 @@ namespace AppointmentSystem.Infrastructure.Services
 
         public async Task<ApiResponse<PaginatedResponse<WorkingDayDto>>> GetAllPagedAsync(int page, int pageSize)
         {
-            var query =  _unitOfWork.WorkingDays.GetAll();
+            var query = _unitOfWork.WorkingDays.GetAll();
 
             var totalItems = await query.CountAsync();
             var items = await query
@@ -131,6 +184,7 @@ namespace AppointmentSystem.Infrastructure.Services
             return ApiResponse<PaginatedResponse<WorkingDayDto>>.Ok(paginated);
         }
 
+        #region Functions
         private async Task<WorkingDay> CreateWorkingDayAsync(WorkingDayCreateDto dto)
         {
             var workingDay = _mapper.Map<WorkingDay>(dto);
@@ -183,7 +237,7 @@ namespace AppointmentSystem.Infrastructure.Services
 
             return (int)(totalMinutes / intervalMinutes);
         }
-
+        #endregion
     }
 }
 

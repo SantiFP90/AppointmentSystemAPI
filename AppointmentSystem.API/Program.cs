@@ -9,6 +9,7 @@ using AppointmentSystem.Infrastructure.Security;
 using AppointmentSystem.Application.Interfaces.Fatories;
 using AppointmentSystem.Infrastructure.Factories;
 using AppointmentSystem.Infrastructure.Strategies;
+using AppointmentSystem.Infrastructure.Workers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,10 +37,8 @@ builder.Services.AddScoped<INotificationLogService, NotificationLogService>();
 //SmtpServices
 builder.Services.AddScoped<ISmtpService, SmtpServices>();
 
-
 //Repositories
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
-
 
 //UoW Repository
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -53,6 +52,11 @@ builder.Services.AddScoped<IClientCreationStrategyFactory, ClientCreationStrateg
 
 //Security
 builder.Services.AddScoped<JwtSecurityService>();
+
+//Workers
+builder.Services.AddHostedService<AppointmentNotificationWorker>();
+builder.Services.AddHostedService<AppoimentDeleteTimeSlotWorker>();
+
 
 builder.Services.AddCors(options =>
 {

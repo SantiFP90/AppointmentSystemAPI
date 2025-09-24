@@ -1,4 +1,5 @@
 ﻿using AppointmentSystem.Application.DTOS.Appoiment;
+using AppointmentSystem.Application.DTOS.Calendar;
 using AppointmentSystem.Application.DTOS.Notification;
 using AppointmentSystem.Application.DTOS.Response;
 using AppointmentSystem.Application.DTOS.TimeSlot;
@@ -10,6 +11,8 @@ using AppointmentSystem.Domain.Enums;
 using AppointmentSystem.Infrastructure.Helper;
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
+using System.Net.Mail;
 
 namespace AppointmentSystem.Infrastructure.Services
 {
@@ -99,6 +102,8 @@ namespace AppointmentSystem.Infrastructure.Services
                         throw new InvalidOperationException(validation.Message);
 
                     existing.Status = dto.Status;
+                    existing.PaymentStatus = dto.PaymentStatus;
+
                     await _unitOfWork.Appointments.Edit(existing);
                     await _unitOfWork.SaveChangesAsync();
 
@@ -150,11 +155,11 @@ namespace AppointmentSystem.Infrastructure.Services
                         Recipient = existing.Client?.Email ?? "N/A",
                         Subject = "Cita cancelada",
                         Body = $"La cita para el {existing.TimeSlot?.WorkingDay.Date:dd/MM/yyyy} a las {existing.TimeSlot?.StartTime:hh\\:mm} ha sido cancelada.",
-                        IsSent = false, 
+                        IsSent = false,
                         SentAt = DateTime.UtcNow
                     });
 
-                    if(registerLog.IsSent == false)
+                    if (registerLog.IsSent == false)
                     {
                         await _smtpService.SendEmailAsync(
                             existing.Client?.Email ?? "N/A",
@@ -191,12 +196,19 @@ namespace AppointmentSystem.Infrastructure.Services
                 : ApiResponse<AppointmentDto>.Ok(_mapper.Map<AppointmentDto>(entity));
         }
 
-        public async Task<ApiResponse<PaginatedResponse<AppointmentDto>>> GetAllPagedAsync(int page, int pageSize)
+        public async Task<ApiResponse<PaginatedResponse<AppointmentDto>>> GetAllPagedAsync(int page, int pageSize, string name)
         {
+            Expression<Func<Appointment, bool>>? filter = null;
+
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                filter = a => a.Client.FullName.Contains(name);
+            }
+
             var paged = await _unitOfWork.Appointments.GetPagedAsync(
                 page,
                 pageSize,
-                null,
+                filter,
                 q => q.Include(a => a.Client).Include(a => a.TimeSlot),
                 q => q.OrderBy(a => a.CreatedAt)
             );
@@ -237,6 +249,75 @@ namespace AppointmentSystem.Infrastructure.Services
             return ApiResponse<List<AppointmentDto>>.Ok(_mapper.Map<List<AppointmentDto>>(list));
         }
 
+        public async Task<ApiResponse<List<AppoimentMonthDto>>> GetAppoimentByMonth(int month)
+        {
+            var appointments = await _unitOfWork.Appointments.GetAll(
+                a => a.TimeSlot.WorkingDay.Date.Month == month,
+                q => q.Include(a => a.Client)
+                      .Include(a => a.TimeSlot)
+                      .ThenInclude(ts => ts.WorkingDay)
+            ).ToListAsync();
+
+            var result = _mapper.Map<List<AppoimentMonthDto>>(appointments);
+
+            return ApiResponse<List<AppoimentMonthDto>>.Ok(result);
+        }
+
+        public async Task<ApiResponse<List<CalendarDayDto>>> GetCalendarByMonthAsync(int month, int year)
+        {
+            var workingDays = await _unitOfWork.WorkingDays.GetAll(
+                wd => wd.Date.Month == month && wd.Date.Year == year,
+                q => q.Include(wd => wd.TimeSlots)
+                      .ThenInclude(ts => ts.Appointments)
+                      .ThenInclude(a => a.Client)
+            ).ToListAsync();
+
+            var result = workingDays.Select(wd => new CalendarDayDto
+            {
+                WorkingDayId = wd.Id,
+                Date = wd.Date,
+                TimeSlots = wd.TimeSlots.Select(ts => new CalendarTimeSlotDto
+                {
+                    StartTime = ts.StartTime,
+                    EndTime = ts.EndTime,
+                    IsAvailable = !ts.Appointments.Any(),
+                    Appointment = ts.Appointments.Select(a => new AppointmentDto
+                    {
+                        ClientId = a.Client.Id,
+                        ClientName = a.Client.FullName,
+                        ClientEmail = a.Client.Email,
+                        Status = a.Status
+                    }).FirstOrDefault()
+                }).ToList()
+            }).ToList();
+            return ApiResponse<List<CalendarDayDto>>.Ok(result);
+        }
+
+        public async Task<ApiResponse<AppoimentCounterDto>> GetCounters()
+        {
+            var today = DateTime.Today;
+            var tomorrow = today.AddDays(1);
+            var startOfWeek = today.AddDays(-(int)today.DayOfWeek + (int)DayOfWeek.Monday);
+            var endOfWeek = startOfWeek.AddDays(6);
+
+            var counters = new AppoimentCounterDto
+            {
+                AvailableAppointments = await _unitOfWork.Appointments
+                    .GetAll(a => a.TimeSlot.IsAvailable == false)
+                    .CountAsync(),
+                PedingAppointmentsToday = await _unitOfWork.Appointments
+                    .GetAll(a => a.TimeSlot.WorkingDay.Date >= today &&
+                                 a.TimeSlot.WorkingDay.Date < tomorrow)
+                    .CountAsync(),
+                PendingAppoimentsThisWeek = await _unitOfWork.Appointments
+                    .GetAll(a => a.TimeSlot.WorkingDay.Date >= today &&
+                                 a.TimeSlot.WorkingDay.Date <= endOfWeek)
+                    .CountAsync()
+            };
+            return ApiResponse<AppoimentCounterDto>.Ok(counters);
+        }
+
+
         #region Functions
         private async Task<int> GetOrCreateClientIdAsync(AppointmentCreateDto dto)
         {
@@ -261,12 +342,16 @@ namespace AppointmentSystem.Infrastructure.Services
 
             try
             {
+                var calendarAttachment = GenerateCalendarInvite(dto, appointmentEntity);
+
                 await _smtpService.SendEmailAsync(
                     dto.ClientEmail!,
                     "Confirmación de turno",
                     emailBody,
-                    isHtml: true
+                    isHtml: true,
+                    attachments: new List<Attachment> { calendarAttachment }
                 );
+
                 emailSent = true;
             }
             catch (Exception ex)
@@ -289,6 +374,58 @@ namespace AppointmentSystem.Infrastructure.Services
 
             await _notificationLogService.CreateAsync(logDto);
         }
+
+
+        private Attachment GenerateCalendarInvite(AppointmentCreateDto dto, Appointment appointment)
+        {
+            // Convertimos fecha y hora a UTC
+            var startUtc = appointment.TimeSlot.WorkingDay.Date
+                            .Add(appointment.TimeSlot.StartTime)
+                            .ToUniversalTime();
+            var endUtc = appointment.TimeSlot.WorkingDay.Date
+                            .Add(appointment.TimeSlot.EndTime)
+                            .ToUniversalTime();
+
+            string dtStamp = DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'");
+            string dtStart = startUtc.ToString("yyyyMMdd'T'HHmmss'Z'");
+            string dtEnd = endUtc.ToString("yyyyMMdd'T'HHmmss'Z'");
+            string uid = Guid.NewGuid().ToString();
+
+            string organizerName = "Mi Empresa";
+            string organizerEmail = "servicesmailatr@gmail.com";
+
+            string icsContent = $@"BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Mi Empresa//Appointment Scheduler//ES
+CALSCALE:GREGORIAN
+METHOD:REQUEST
+BEGIN:VEVENT
+UID:{uid}
+DTSTAMP:{dtStamp}
+DTSTART:{dtStart}
+DTEND:{dtEnd}
+SUMMARY:Turno con {dto.ClientName}
+DESCRIPTION:Turno agendado
+LOCATION:Tu ubicación
+ORGANIZER;CN={organizerName}:MAILTO:{organizerEmail}
+ATTENDEE;CN={dto.ClientName};RSVP=TRUE:MAILTO:{dto.ClientEmail}
+STATUS:CONFIRMED
+BEGIN:VALARM
+TRIGGER:-PT15M
+ACTION:DISPLAY
+DESCRIPTION:Recordatorio
+END:VALARM
+END:VEVENT
+END:VCALENDAR";
+
+            var bytes = System.Text.Encoding.UTF8.GetBytes(icsContent);
+            var stream = new MemoryStream(bytes);
+            var attachment = new Attachment(stream, "appointment.ics", "text/calendar; method=REQUEST; charset=UTF-8");
+            return attachment;
+        }
+
+
+
 
         private async Task<ApiResponse<bool>> ValidateAndSwapTimeSlotAsync(Appointment existing, AppointmentUpdateDto dto)
         {

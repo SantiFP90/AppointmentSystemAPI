@@ -9,5 +9,7 @@ namespace AppointmentSystem.Domain.Enums
     public enum NotificationType
     {
         Email = 1,
+        ConfirmationEmail = 2,
+        ConfirmationEmail24 = 3,
     }
 }

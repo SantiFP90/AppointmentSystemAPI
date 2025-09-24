@@ -18,19 +18,19 @@ namespace AppointmentSystem.Infrastructure.Repositories
         public Task<TModel> Create(TModel model)
         {
             _dbContext.Set<TModel>().Add(model);
-            return Task.FromResult(model); // No hace SaveChanges
+            return Task.FromResult(model); 
         }
 
         public Task<bool> Edit(TModel model)
         {
             _dbContext.Set<TModel>().Update(model);
-            return Task.FromResult(true); // No hace SaveChanges
+            return Task.FromResult(true);
         }
 
         public Task<bool> Delete(TModel model)
         {
             _dbContext.Set<TModel>().Remove(model);
-            return Task.FromResult(true); // No hace SaveChanges
+            return Task.FromResult(true); 
         }
 
         public IQueryable<TModel> GetAll(
