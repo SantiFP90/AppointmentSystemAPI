@@ -81,6 +81,5 @@ namespace AppointmentSystem.API.Controllers
             else
                 return BadRequest(response);
         }
-
     }
 }
