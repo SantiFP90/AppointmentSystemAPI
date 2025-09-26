@@ -13,7 +13,11 @@ namespace AppointmentSystem.Application.Mapper
     {
         public AppointmentProfile()
         {
-            CreateMap<Appointment, AppointmentDto>().ReverseMap();
+            CreateMap<Appointment, AppointmentDto>()
+            .ForMember(dest => dest.StartTime, opt => opt.MapFrom(src => src.TimeSlot.StartTime))
+            .ForMember(dest => dest.EndTime, opt => opt.MapFrom(src => src.TimeSlot.EndTime))
+            .ForMember(dest => dest.WorkingDayDate, opt => opt.MapFrom(src => src.TimeSlot.WorkingDay.Date))
+            .ReverseMap();
             CreateMap<AppointmentCreateDto, Appointment>();
             CreateMap<AppointmentUpdateDto, Appointment>();
             CreateMap<Appointment, AppoimentMonthDto>()

@@ -209,8 +209,10 @@ namespace AppointmentSystem.Infrastructure.Services
                 page,
                 pageSize,
                 filter,
-                q => q.Include(a => a.Client).Include(a => a.TimeSlot),
-                q => q.OrderBy(a => a.CreatedAt)
+                q => q.Include(a => a.Client)
+                      .Include(a => a.TimeSlot)
+                      .ThenInclude(ts => ts.WorkingDay),
+                q => q.OrderByDescending(a => a.TimeSlot.WorkingDay.Date)
             );
 
             var mapped = new PaginatedResponse<AppointmentDto>

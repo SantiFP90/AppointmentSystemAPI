@@ -81,12 +81,19 @@ namespace AppointmentSystem.Infrastructure.Services
                     include: q => q.Include(u => u.Role)
                 );
 
+                if(user == null)
+                    return ApiResponse<LoginResponseDto>.Fail("Credenciales inválidas.");
+
+                if (user.RoleId != 1  && user.RoleId != 2)
+                    return ApiResponse<LoginResponseDto>.Fail("No eres cliente.");
+
+
                 if (user == null || !BCrypt.Net.BCrypt.Verify(loginDto.Password, user.PasswordHash))
                     return ApiResponse<LoginResponseDto>.Fail("Credenciales inválidas.");
 
                 var token = _jwtSecurityService.GenerateJwtToken(user);
 
-                var responseDto = new LoginResponseDto { Token = token };
+                var responseDto = new LoginResponseDto { Token = token, UserName = user.FullName, Role = user.Role.Name};
 
                 return ApiResponse<LoginResponseDto>.Ok(responseDto, "Login exitoso.");
             }

@@ -23,12 +23,6 @@ namespace AppointmentSystem.Domain.Entities
         [MaxLength(20)]
         public string? PhoneNumber { get; set; }
 
-        [Range(0, 150)]
-        public int Age { get; set; }
-        
-        [MaxLength(40)]
-        public string DNI { get; set; } = null!;
-
         [Required]
         [EmailAddress]
         [MaxLength(200)]

@@ -20,5 +20,9 @@ namespace AppointmentSystem.Application.DTOS.Appoiment
         public decimal? Amount { get; set; }
         public DateTime CreatedAt { get; set; }
         public int TimeSlotId { get; set; }
+
+        public TimeSpan StartTime { get; set; }
+        public TimeSpan EndTime { get; set; }
+        public DateTime WorkingDayDate { get; set; }
     }
 }
