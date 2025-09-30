@@ -93,7 +93,7 @@ namespace AppointmentSystem.Infrastructure.Services
 
                 var token = _jwtSecurityService.GenerateJwtToken(user);
 
-                var responseDto = new LoginResponseDto { Token = token, UserName = user.FullName, Role = user.Role.Name};
+                var responseDto = new LoginResponseDto { Token = token, UserName = user.FullName, Role = user.Role.Name, Email = user.Email, PhoneNumber = user.PhoneNumber};
 
                 return ApiResponse<LoginResponseDto>.Ok(responseDto, "Login exitoso.");
             }
@@ -165,8 +165,6 @@ namespace AppointmentSystem.Infrastructure.Services
                         return null;
 
                     existingUser.FullName = updateDto.FullName?.Trim() ?? existingUser.FullName;
-                    existingUser.DNI = updateDto.DNI?.Trim() ?? existingUser.DNI;
-                    existingUser.Age = updateDto.Age ?? existingUser.Age;
                     existingUser.Email = updateDto.Email?.Trim().ToLowerInvariant() ?? existingUser.Email;
                     existingUser.RoleId = updateDto.RoleId ?? existingUser.RoleId;
 
@@ -208,8 +206,6 @@ namespace AppointmentSystem.Infrastructure.Services
                         return null;
 
                     existingUser.FullName = updateUser.FullName?.Trim() ?? existingUser.FullName;
-                    existingUser.DNI = updateUser.DNI?.Trim() ?? existingUser.DNI;
-                    existingUser.Age = updateUser.Age ?? existingUser.Age;
                     existingUser.Email = updateUser.Email?.Trim().ToLowerInvariant() ?? existingUser.Email;
                     existingUser.RoleId = 2;
                     if(updateUser.Password != null)

@@ -25,8 +25,6 @@ namespace AppointmentSystem.Infrastructure.Strategies
             {
                 FullName = dto.ClientName,
                 PhoneNumber = dto.ClientPhoneNumber,
-                Age = 0,
-                DNI = "",
                 Email = dto.ClientEmail,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("defaultPassword123"),
                 RoleId = 3,
