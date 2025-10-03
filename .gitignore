@@ -2,6 +2,9 @@
 # .NET / Visual Studio / Rider
 ##############################
 
+.vs
+./.vs
+
 ## Build results
 [Bb]in/
 [Oo]bj/

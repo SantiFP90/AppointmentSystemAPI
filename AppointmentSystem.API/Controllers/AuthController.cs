@@ -3,9 +3,12 @@ using AppointmentSystem.Application.DTOS.Auth;
 using AppointmentSystem.Application.Interfaces.Services;
 using Microsoft.AspNetCore.Mvc;
 using AppointmentSystem.Application.DTOS.User;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 
 namespace AppointmentSystem.API.Controllers
-{
+{ 
+
     [ApiController]
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
@@ -39,9 +42,28 @@ namespace AppointmentSystem.API.Controllers
         }
 
         [HttpGet("getUserById")]
-        public async Task<IActionResult> GetUser([FromQuery] int id )
+        public async Task<IActionResult> GetUser([FromQuery] int id)
         {
             var response = await _authService.GetByIdAsync(id);
+
+            if (response.Success)
+                return Ok(response);
+            else
+                return BadRequest(response);
+        }
+
+        [Authorize]
+        [HttpGet("getUser")]
+        public async Task<IActionResult> GetUserForForm()
+        {
+         
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+
+            if (userId == null)
+                return Unauthorized();
+
+            var response = await _authService.GetByIdAsync(int.Parse(userId));
 
             if (response.Success)
                 return Ok(response);

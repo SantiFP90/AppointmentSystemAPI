@@ -10,6 +10,9 @@ using AppointmentSystem.Application.Interfaces.Fatories;
 using AppointmentSystem.Infrastructure.Factories;
 using AppointmentSystem.Infrastructure.Strategies;
 using AppointmentSystem.Infrastructure.Workers;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -53,6 +56,30 @@ builder.Services.AddScoped<IClientCreationStrategyFactory, ClientCreationStrateg
 //Security
 builder.Services.AddScoped<JwtSecurityService>();
 
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        //Servidor
+        ValidateIssuer = false,
+        //Cliente
+        ValidateAudience = false,
+        //Tiempo de expiración
+        ValidateLifetime = true,
+        //Firma de cliente
+        ValidateIssuerSigningKey = true,
+        //Firma servidor
+        IssuerSigningKey = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SecretKey"]!)
+        ),
+        ClockSkew = TimeSpan.Zero
+    };
+});
+
 //Workers
 builder.Services.AddHostedService<AppointmentNotificationWorker>();
 builder.Services.AddHostedService<AppoimentDeleteTimeSlotWorker>();
@@ -62,7 +89,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("Front", policy =>
     {
-        policy.WithOrigins("http://localhost:4200") 
+        policy.WithOrigins("http://localhost:4200")
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
@@ -76,10 +103,13 @@ var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI();
 
-app.UseCors("Front");
-app.UseHttpsRedirection();
-app.UseAuthorization();
-app.UseAuthentication();
+app.UseCors("Front");           // 1️⃣ CORS primero
+
+app.UseHttpsRedirection();      // 2️⃣ HTTPS
+
+app.UseAuthentication();        // 3️⃣ Autenticación (valida el token)
+app.UseAuthorization();         // 4️⃣ Autorización (valida permisos)
+
 app.MapControllers();
 
 app.Run();
